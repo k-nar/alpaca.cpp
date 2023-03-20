@@ -16,6 +16,7 @@
 #include <unistd.h>
 #elif defined (_WIN32)
 #include <signal.h>
+#include <Windows.h>
 #endif
 
 #define ANSI_COLOR_RED     "\x1b[31m"
@@ -30,7 +31,7 @@
 // determine number of model parts based on the dimension
 static const std::map<int, int> LLAMA_N_PARTS = {
     { 4096, 1 },
-    { 5120, 2 },
+    { 5120, 1 },
     { 6656, 4 },
     { 8192, 8 },
 };
@@ -798,6 +799,7 @@ int main(int argc, char ** argv) {
 
     params.temp = 0.1f;
     params.top_p = 0.95f;
+    params.n_ctx = 2048;
     params.interactive = true;
     params.interactive_start = true;
     params.use_color = true;
@@ -814,9 +816,9 @@ int main(int argc, char ** argv) {
     fprintf(stderr, "%s: seed = %d\n", __func__, params.seed);
 
     std::mt19937 rng(params.seed);
-    if (params.prompt.empty()) {
-        params.prompt = gpt_random_prompt(rng);
-    }
+    // if (params.prompt.empty()) {
+    //     params.prompt = gpt_random_prompt(rng);
+    // }
 
 //    params.prompt = R"(// this function checks if the number n is prime
 //bool is_prime(int n) {)";
@@ -851,6 +853,8 @@ int main(int argc, char ** argv) {
 
     std::vector<float> logits;
 
+    // Add a space in front of the first character to match OG llama tokenizer behavior
+    // params.prompt.insert(0, 1, ' ');
     // tokenize the prompt
     std::vector<gpt_vocab::id> embd_inp;// = ::llama_tokenize(vocab, params.prompt, true);
 
@@ -883,6 +887,12 @@ int main(int argc, char ** argv) {
         sigaction(SIGINT, &sigint_action, NULL);
 #elif defined (_WIN32)
         signal(SIGINT, sigint_handler);
+
+        // Windows console ANSI color fix
+        DWORD mode = 0;
+        HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+        if (hConsole && hConsole != INVALID_HANDLE_VALUE && GetConsoleMode(hConsole, &mode))
+            SetConsoleMode(hConsole, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
 #endif
 
         fprintf(stderr, "%s: interactive mode on.\n", __func__);
